@@ -1,0 +1,39 @@
+server:
+  port: ${SERVER_PORT:8081}
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:30}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:100}
+spring:
+  application:
+    name: product-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/product_db}
+    username: ${DB_USERNAME:flashsale}
+    password: ${DB_PASSWORD:flashsale}
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:10}
+      minimum-idle: ${HIKARI_MIN_IDLE:5}
+      connection-timeout: 30000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+flashsale:
+  failure:
+    inventory-delay-ms: ${INVENTORY_DELAY_MS:0}
+    inventory-error-percentage: ${INVENTORY_ERROR_PERCENTAGE:0}
+logging:
+  pattern:
+    level: "%5p [product-service,corr:%X{correlationId:-},req:%X{requestId:-},order:%X{orderId:-},duration:%X{processingDurationMs:-},status:%X{finalStatus:-}]"

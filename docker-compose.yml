@@ -1,0 +1,117 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: flashsale
+      POSTGRES_PASSWORD: flashsale
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/create-databases.sql:/docker-entrypoint-initdb.d/01-create-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flashsale -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  product-service:
+    build:
+      context: .
+      dockerfile: product-service/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_URL: jdbc:postgresql://postgres:5432/product_db
+      DB_USERNAME: flashsale
+      DB_PASSWORD: flashsale
+      INVENTORY_DELAY_MS: ${INVENTORY_DELAY_MS:-0}
+      INVENTORY_ERROR_PERCENTAGE: ${INVENTORY_ERROR_PERCENTAGE:-0}
+      TOMCAT_MAX_THREADS: ${PRODUCT_TOMCAT_THREADS:-30}
+      HIKARI_MAX_POOL_SIZE: ${PRODUCT_HIKARI_POOL:-10}
+    ports: ["8081:8081"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  reservation-service:
+    build:
+      context: .
+      dockerfile: reservation-service/Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/reservation_db
+      DB_USERNAME: flashsale
+      DB_PASSWORD: flashsale
+      RESERVATION_DELAY_MS: ${RESERVATION_DELAY_MS:-0}
+      RESERVATION_ERROR_PERCENTAGE: ${RESERVATION_ERROR_PERCENTAGE:-0}
+      TOMCAT_MAX_THREADS: ${RESERVATION_TOMCAT_THREADS:-30}
+      HIKARI_MAX_POOL_SIZE: ${RESERVATION_HIKARI_POOL:-10}
+    ports: ["8082:8082"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8082/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/payment_db
+      DB_USERNAME: flashsale
+      DB_PASSWORD: flashsale
+      PAYMENT_DELAY_MS: ${PAYMENT_DELAY_MS:-500}
+      PAYMENT_FAILURE_PERCENTAGE: ${PAYMENT_FAILURE_PERCENTAGE:-10}
+      TOMCAT_MAX_THREADS: ${PAYMENT_TOMCAT_THREADS:-20}
+      HIKARI_MAX_POOL_SIZE: ${PAYMENT_HIKARI_POOL:-5}
+    ports: ["8084:8084"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8084/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  order-service:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/order_db
+      DB_USERNAME: flashsale
+      DB_PASSWORD: flashsale
+      PRODUCT_SERVICE_URL: http://product-service:8081
+      RESERVATION_SERVICE_URL: http://reservation-service:8082
+      PAYMENT_SERVICE_URL: http://payment-service:8084
+      HTTP_CONNECT_TIMEOUT_MS: ${HTTP_CONNECT_TIMEOUT_MS:-1000}
+      HTTP_READ_TIMEOUT_MS: ${HTTP_READ_TIMEOUT_MS:-5000}
+      AFTER_PAYMENT_SUCCESS_PERCENTAGE: ${AFTER_PAYMENT_SUCCESS_PERCENTAGE:-0}
+      TOMCAT_MAX_THREADS: ${ORDER_TOMCAT_THREADS:-50}
+      HIKARI_MAX_POOL_SIZE: ${ORDER_HIKARI_POOL:-10}
+    ports: ["8083:8083"]
+    depends_on:
+      product-service:
+        condition: service_healthy
+      reservation-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres-data:

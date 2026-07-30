@@ -1,7 +1,16 @@
+# Maven and IDE output
+target/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+load-test/results/
+jmeter.log
+
 # Compiled class file
 *.class
 
-# Log file
+# Log files
 *.log
 
 # BlueJ files

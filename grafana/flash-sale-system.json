@@ -1,0 +1,458 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "9.3.2"},
+    {"type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0"},
+    {"type": "panel", "id": "stat", "name": "Stat", "version": ""},
+    {"type": "panel", "id": "timeseries", "name": "Time series", "version": ""}
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "target": {"limit": 100, "matchAny": false, "tags": [], "type": "dashboard"},
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Flash-sale business, HTTP, JVM, Tomcat and HikariCP metrics from Spring Boot Micrometer.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [{"editorMode": "code", "expr": "sum(flashsale_orders_requested_total)", "legendFormat": "orders", "range": true, "refId": "A"}],
+      "title": "Orders requested",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 90}, {"color": "green", "value": 98}]},
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [{"editorMode": "code", "expr": "100 * sum(flashsale_orders_confirmed_total) / clamp_min(sum(flashsale_orders_requested_total), 1)", "legendFormat": "confirmed", "range": true, "refId": "A"}],
+      "title": "Order confirmation %",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 2}, {"color": "red", "value": 10}]},
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [{"editorMode": "code", "expr": "100 * sum(flashsale_orders_failed_total) / clamp_min(sum(flashsale_orders_requested_total), 1)", "legendFormat": "failed", "range": true, "refId": "A"}],
+      "title": "Order failure %",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [{"editorMode": "code", "expr": "sum(flashsale_orders_out_of_stock_total)", "legendFormat": "out of stock", "range": true, "refId": "A"}],
+      "title": "Out-of-stock orders",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 90}, {"color": "green", "value": 98}]},
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [{"editorMode": "code", "expr": "100 * sum(flashsale_payments_succeeded_total) / clamp_min(sum(flashsale_payments_requested_total), 1)", "legendFormat": "successful", "range": true, "refId": "A"}],
+      "title": "Payment success %",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [{"editorMode": "code", "expr": "min(up{job=~\"$job\"})", "legendFormat": "up", "range": true, "refId": "A"}],
+      "title": "Selected services up",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 4},
+      "id": 7,
+      "panels": [],
+      "title": "Business throughput",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 5},
+      "id": 8,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "sum(rate(flashsale_orders_requested_total[$__rate_interval]))", "legendFormat": "requested", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_orders_confirmed_total[$__rate_interval]))", "legendFormat": "confirmed", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_orders_failed_total[$__rate_interval]))", "legendFormat": "failed", "range": true, "refId": "C"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_orders_out_of_stock_total[$__rate_interval]))", "legendFormat": "out of stock", "range": true, "refId": "D"}
+      ],
+      "title": "Orders / second",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 5},
+      "id": 9,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "sum(rate(flashsale_payments_requested_total[$__rate_interval]))", "legendFormat": "requested", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_payments_succeeded_total[$__rate_interval]))", "legendFormat": "succeeded", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_payments_failed_total[$__rate_interval]))", "legendFormat": "failed", "range": true, "refId": "C"}
+      ],
+      "title": "Payments / second",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 5},
+      "id": 10,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "sum(rate(flashsale_inventory_reduction_requests_total[$__rate_interval]))", "legendFormat": "inventory reductions", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_inventory_reduction_successes_total[$__rate_interval]))", "legendFormat": "successful reductions", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_inventory_restoration_requests_total[$__rate_interval]))", "legendFormat": "restorations", "range": true, "refId": "C"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_inventory_out_of_stock_total[$__rate_interval]))", "legendFormat": "out of stock", "range": true, "refId": "D"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_reservations_created_total[$__rate_interval]))", "legendFormat": "reservations created", "range": true, "refId": "E"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_reservations_confirmed_total[$__rate_interval]))", "legendFormat": "reservations confirmed", "range": true, "refId": "F"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_reservations_cancelled_total[$__rate_interval]))", "legendFormat": "reservations cancelled", "range": true, "refId": "G"}
+      ],
+      "title": "Inventory & reservations / second",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 13},
+      "id": 11,
+      "panels": [],
+      "title": "Business and downstream latency",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "id": 12,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "sum(rate(flashsale_order_processing_duration_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(flashsale_order_processing_duration_seconds_count[$__rate_interval])), 0.000001)", "legendFormat": "order average", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_payment_processing_duration_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(flashsale_payment_processing_duration_seconds_count[$__rate_interval])), 0.000001)", "legendFormat": "payment average", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_reservation_operation_duration_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(flashsale_reservation_operation_duration_seconds_count[$__rate_interval])), 0.000001)", "legendFormat": "reservation average", "range": true, "refId": "C"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_inventory_update_duration_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(flashsale_inventory_update_duration_seconds_count[$__rate_interval])), 0.000001)", "legendFormat": "inventory average", "range": true, "refId": "D"}
+      ],
+      "title": "Average business-operation latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "id": 13,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "sum(rate(flashsale_client_product_duration_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(flashsale_client_product_duration_seconds_count[$__rate_interval])), 0.000001)", "legendFormat": "product client average", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_client_reservation_duration_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(flashsale_client_reservation_duration_seconds_count[$__rate_interval])), 0.000001)", "legendFormat": "reservation client average", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_client_payment_duration_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(flashsale_client_payment_duration_seconds_count[$__rate_interval])), 0.000001)", "legendFormat": "payment client average", "range": true, "refId": "C"},
+        {"editorMode": "code", "expr": "max(flashsale_client_product_duration_seconds_max)", "legendFormat": "product client max", "range": true, "refId": "D"},
+        {"editorMode": "code", "expr": "max(flashsale_client_reservation_duration_seconds_max)", "legendFormat": "reservation client max", "range": true, "refId": "E"},
+        {"editorMode": "code", "expr": "max(flashsale_client_payment_duration_seconds_max)", "legendFormat": "payment client max", "range": true, "refId": "F"}
+      ],
+      "title": "Order-service downstream client latency",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 22},
+      "id": 14,
+      "panels": [],
+      "title": "HTTP requests",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 23},
+      "id": 15,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"editorMode": "code", "expr": "sum by (job) (rate(http_server_requests_seconds_count{job=~\"$job\",uri!~\"/actuator.*\"}[$__rate_interval]))", "legendFormat": "{{job}}", "range": true, "refId": "A"}],
+      "title": "HTTP request rate by service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "max": 100, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 2}, {"color": "red", "value": 10}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 23},
+      "id": 16,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"editorMode": "code", "expr": "100 * sum by (job) (rate(http_server_requests_seconds_count{job=~\"$job\",status=~\"5..\",uri!~\"/actuator.*\"}[$__rate_interval])) / clamp_min(sum by (job) (rate(http_server_requests_seconds_count{job=~\"$job\",uri!~\"/actuator.*\"}[$__rate_interval])), 0.000001)", "legendFormat": "{{job}}", "range": true, "refId": "A"}],
+      "title": "HTTP 5xx error %",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 23},
+      "id": 17,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"editorMode": "code", "expr": "sum by (job) (rate(http_server_requests_seconds_sum{job=~\"$job\",uri!~\"/actuator.*\"}[$__rate_interval])) / clamp_min(sum by (job) (rate(http_server_requests_seconds_count{job=~\"$job\",uri!~\"/actuator.*\"}[$__rate_interval])), 0.000001)", "legendFormat": "{{job}} average", "range": true, "refId": "A"}],
+      "title": "HTTP average latency",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 31},
+      "id": 18,
+      "panels": [],
+      "title": "JVM and process",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "max": 100, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 90}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 32},
+      "id": 19,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "100 * process_cpu_usage{job=~\"$job\"}", "legendFormat": "{{job}} process", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "100 * system_cpu_usage{job=~\"$job\"}", "legendFormat": "{{job}} system", "range": true, "refId": "B"}
+      ],
+      "title": "CPU utilization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 20, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "normal"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "bytes"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 32},
+      "id": 20,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"editorMode": "code", "expr": "sum by (job, area) (jvm_memory_used_bytes{job=~\"$job\"})", "legendFormat": "{{job}} {{area}}", "range": true, "refId": "A"}],
+      "title": "JVM memory used",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 32},
+      "id": 21,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "jvm_threads_live_threads{job=~\"$job\"}", "legendFormat": "{{job}} live", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "jvm_threads_daemon_threads{job=~\"$job\"}", "legendFormat": "{{job}} daemon", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "jvm_threads_peak_threads{job=~\"$job\"}", "legendFormat": "{{job}} peak", "range": true, "refId": "C"}
+      ],
+      "title": "JVM threads",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+      "id": 22,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"editorMode": "code", "expr": "sum by (job, action) (rate(jvm_gc_pause_seconds_count{job=~\"$job\"}[$__rate_interval]))", "legendFormat": "{{job}} {{action}}", "range": true, "refId": "A"}],
+      "title": "GC pauses / second",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
+      "id": 23,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"editorMode": "code", "expr": "sum by (job, action) (rate(jvm_gc_pause_seconds_sum{job=~\"$job\"}[$__rate_interval])) / clamp_min(sum by (job, action) (rate(jvm_gc_pause_seconds_count{job=~\"$job\"}[$__rate_interval])), 0.000001)", "legendFormat": "{{job}} {{action}}", "range": true, "refId": "A"}],
+      "title": "Average GC pause",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 48},
+      "id": 24,
+      "panels": [],
+      "title": "Tomcat and database pools",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 49},
+      "id": 25,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "tomcat_threads_busy_threads{job=~\"$job\"}", "legendFormat": "{{job}} busy", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "tomcat_threads_current_threads{job=~\"$job\"}", "legendFormat": "{{job}} current", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "tomcat_threads_config_max_threads{job=~\"$job\"}", "legendFormat": "{{job}} configured max", "range": true, "refId": "C"}
+      ],
+      "title": "Tomcat threads",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 49},
+      "id": 26,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "hikaricp_connections_active{job=~\"$job\"}", "legendFormat": "{{job}} active", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "hikaricp_connections_idle{job=~\"$job\"}", "legendFormat": "{{job}} idle", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "hikaricp_connections_pending{job=~\"$job\"}", "legendFormat": "{{job}} pending", "range": true, "refId": "C"},
+        {"editorMode": "code", "expr": "hikaricp_connections_max{job=~\"$job\"}", "legendFormat": "{{job}} max", "range": true, "refId": "D"}
+      ],
+      "title": "HikariCP connections",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 37,
+  "style": "dark",
+  "tags": ["flash-sale", "spring-boot", "micrometer", "prometheus"],
+  "templating": {
+    "list": [
+      {
+        "allValue": "(order|payment|product|reservation)-actuator",
+        "current": {"selected": true, "text": "All", "value": "$__all"},
+        "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+        "definition": "label_values(up{job=~\"(order|payment|product|reservation)-actuator\"}, job)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Prometheus job",
+        "multi": true,
+        "name": "job",
+        "options": [],
+        "query": {"query": "label_values(up{job=~\"(order|payment|product|reservation)-actuator\"}, job)", "refId": "StandardVariableQuery"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {"from": "now-30m", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Flash Sale System — Micrometer",
+  "uid": "flash-sale-micrometer",
+  "version": 1,
+  "weekStart": ""
+}
