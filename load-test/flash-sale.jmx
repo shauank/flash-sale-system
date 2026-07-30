@@ -10,7 +10,7 @@
     </TestPlan>
     <hashTree>
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Order Load">
-        <stringProp name="ThreadGroup.num_threads">${__P(users,60)}</stringProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(users,100)}</stringProp>
         <stringProp name="ThreadGroup.ramp_time">${__P(rampSeconds,1)}</stringProp>
         <longProp name="ThreadGroup.duration">0</longProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>

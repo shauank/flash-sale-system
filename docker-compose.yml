@@ -16,6 +16,19 @@ services:
       timeout: 3s
       retries: 20
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   product-service:
     build:
       context: .
@@ -94,6 +107,8 @@ services:
       PRODUCT_SERVICE_URL: http://product-service:8081
       RESERVATION_SERVICE_URL: http://reservation-service:8082
       PAYMENT_SERVICE_URL: http://payment-service:8084
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       HTTP_CONNECT_TIMEOUT_MS: ${HTTP_CONNECT_TIMEOUT_MS:-1000}
       HTTP_READ_TIMEOUT_MS: ${HTTP_READ_TIMEOUT_MS:-5000}
       AFTER_PAYMENT_SUCCESS_PERCENTAGE: ${AFTER_PAYMENT_SUCCESS_PERCENTAGE:-0}
@@ -107,6 +122,8 @@ services:
         condition: service_healthy
       payment-service:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8083/actuator/health | grep -q UP"]
       interval: 10s
@@ -115,3 +132,4 @@ services:
 
 volumes:
   postgres-data:
+  redis-data:

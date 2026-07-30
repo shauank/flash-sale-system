@@ -420,6 +420,70 @@
       ],
       "title": "HikariCP connections",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 57},
+      "id": 27,
+      "panels": [],
+      "title": "Redis inventory admission",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 58},
+      "id": 28,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "sum(rate(flashsale_redis_inventory_accepted_total[$__rate_interval]))", "legendFormat": "accepted", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_redis_inventory_rejected_total[$__rate_interval]))", "legendFormat": "rejected", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "sum(rate(flashsale_redis_inventory_unavailable_total[$__rate_interval]))", "legendFormat": "Redis unavailable", "range": true, "refId": "C"}
+      ],
+      "title": "Redis admission decisions / second",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "mappings": [],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 58},
+      "id": 29,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {"editorMode": "code", "expr": "sum(flashsale_redis_inventory_accepted_total)", "legendFormat": "Accepted", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "sum(flashsale_redis_inventory_rejected_total)", "legendFormat": "Rejected", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "sum(flashsale_redis_inventory_unavailable_total)", "legendFormat": "Unavailable", "range": true, "refId": "C"}
+      ],
+      "title": "Redis admission totals",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "u3NG9xLDz"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "line"}}, "mappings": [], "max": 100, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 2}, {"color": "red", "value": 10}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 58},
+      "id": 30,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "100 * sum(rate(flashsale_redis_inventory_rejected_total[$__rate_interval])) / clamp_min(sum(rate(flashsale_redis_inventory_accepted_total[$__rate_interval])) + sum(rate(flashsale_redis_inventory_rejected_total[$__rate_interval])), 0.000001)", "legendFormat": "rejected", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "100 * sum(rate(flashsale_redis_inventory_unavailable_total[$__rate_interval])) / clamp_min(sum(rate(flashsale_redis_inventory_accepted_total[$__rate_interval])) + sum(rate(flashsale_redis_inventory_rejected_total[$__rate_interval])) + sum(rate(flashsale_redis_inventory_unavailable_total[$__rate_interval])), 0.000001)", "legendFormat": "Redis unavailable", "range": true, "refId": "B"}
+      ],
+      "title": "Redis rejection and outage %",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",

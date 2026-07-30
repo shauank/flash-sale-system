@@ -56,6 +56,18 @@ class AfterPaymentSuccessException extends RuntimeException {
 	}
 }
 
+class RedisInventoryRejectedException extends RuntimeException {
+	RedisInventoryRejectedException(long productId, String reason) {
+		super("Product " + productId + " is unavailable in Redis: " + reason);
+	}
+}
+
+class RedisInventoryUnavailableException extends RuntimeException {
+	RedisInventoryUnavailableException(Throwable cause) {
+		super("Redis inventory check is unavailable", cause);
+	}
+}
+
 @RestControllerAdvice
 class OrderErrors {
 	record ApiError(Instant timestamp, int status, String errorCode, String message, String requestId,
@@ -90,6 +102,16 @@ class OrderErrors {
 	@ExceptionHandler(AfterPaymentSuccessException.class)
 	ResponseEntity<ApiError> afterPayment(Exception e) {
 		return out(HttpStatus.INTERNAL_SERVER_ERROR, "AFTER_PAYMENT_SUCCESS_FAILURE", e.getMessage());
+	}
+
+	@ExceptionHandler(RedisInventoryRejectedException.class)
+	ResponseEntity<ApiError> redisInventoryRejected(Exception e) {
+		return out(HttpStatus.CONFLICT, "REDIS_INVENTORY_REJECTED", e.getMessage());
+	}
+
+	@ExceptionHandler(RedisInventoryUnavailableException.class)
+	ResponseEntity<ApiError> redisUnavailable(Exception e) {
+		return out(HttpStatus.SERVICE_UNAVAILABLE, "REDIS_INVENTORY_UNAVAILABLE", e.getMessage());
 	}
 
 	@ExceptionHandler(DataAccessException.class)

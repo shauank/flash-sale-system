@@ -16,17 +16,19 @@ public class OrderWorkflow {
 	private final ProductServiceClient products;
 	private final ReservationServiceClient reservations;
 	private final PaymentServiceClient payments;
+	private final RedisInventoryGate redisInventory;
 	private final int failAfterPayment;
 	private final Counter requested, confirmed, failed, outOfStock;
 	private final Timer duration;
 
 	OrderWorkflow(OrderRepository repository, ProductServiceClient products, ReservationServiceClient reservations,
-			PaymentServiceClient payments, MeterRegistry registry,
+			PaymentServiceClient payments, RedisInventoryGate redisInventory, MeterRegistry registry,
 			@Value("${flashsale.failure.after-payment-success-percentage:0}") int failAfterPayment) {
 		this.repository = repository;
 		this.products = products;
 		this.reservations = reservations;
 		this.payments = payments;
+		this.redisInventory = redisInventory;
 		this.failAfterPayment = failAfterPayment;
 		requested = registry.counter("flashsale.orders.requested");
 		confirmed = registry.counter("flashsale.orders.confirmed");
@@ -35,7 +37,7 @@ public class OrderWorkflow {
 		duration = registry.timer("flashsale.order.processing.duration");
 	}
 
-	public synchronized OrderApi.Response create(OrderApi.CreateRequest request) {
+	public OrderApi.Response create(OrderApi.CreateRequest request) {
 		requested.increment();
 		return duration.record(() -> orchestrate(request));
 	}
@@ -55,8 +57,7 @@ public class OrderWorkflow {
 		} catch (DownstreamConflictException e) {
 			outOfStock.increment();
 			fail(order, "OUT_OF_STOCK");
-			throw new RuntimeException("OUT_OF_STOCK");
-//			return response(order, null, null, "Product is out of stock");
+			return response(order, null, null, "Product is out of stock");
 		} catch (DownstreamNotFoundException e) {
 			fail(order, "PRODUCT_NOT_FOUND");
 			return response(order, null, null, "Product was not found");
@@ -112,6 +113,7 @@ public class OrderWorkflow {
 
 	@Transactional
 	public Order createPending(OrderApi.CreateRequest r) {
+		redisInventory.reserve(r.productId(), r.quantity());
 		return repository
 				.save(new Order("order-" + UUID.randomUUID(), r.requestId(), r.userId(), r.productId(), r.quantity()));
 	}

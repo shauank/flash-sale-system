@@ -4,12 +4,12 @@ import org.junit.jupiter.api.*;import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.*;import static org.mockito.ArgumentMatchers.*;import static org.mockito.Mockito.*;
 
 class OrderWorkflowTest {
- private OrderRepository repository;private ProductServiceClient products;private ReservationServiceClient reservations;private PaymentServiceClient payments;
+ private OrderRepository repository;private ProductServiceClient products;private ReservationServiceClient reservations;private PaymentServiceClient payments;private RedisInventoryGate redisInventory;
  @BeforeEach void setup(){
-  repository=mock(OrderRepository.class);products=mock(ProductServiceClient.class);reservations=mock(ReservationServiceClient.class);payments=mock(PaymentServiceClient.class);
+  repository=mock(OrderRepository.class);products=mock(ProductServiceClient.class);reservations=mock(ReservationServiceClient.class);payments=mock(PaymentServiceClient.class);redisInventory=mock(RedisInventoryGate.class);
   when(repository.save(any())).thenAnswer(i->i.getArgument(0));
  }
- private OrderWorkflow workflow(int crash){return new OrderWorkflow(repository,products,reservations,payments,new SimpleMeterRegistry(),crash);}
+ private OrderWorkflow workflow(int crash){return new OrderWorkflow(repository,products,reservations,payments,redisInventory,new SimpleMeterRegistry(),crash);}
  private OrderApi.CreateRequest request(String id){return new OrderApi.CreateRequest(id,"user-1",1L,1);}
  private void product(){when(products.get(1L)).thenReturn(new ProductServiceClient.Product(1L,"Laptop",new BigDecimal("1000"),100));}
  private ReservationServiceClient.Reservation reservation(){return new ReservationServiceClient.Reservation("reservation-1","order",1L,"user-1",1,"RESERVED");}
@@ -60,5 +60,10 @@ class OrderWorkflowTest {
   when(reservations.cancel(anyString())).thenReturn(new ReservationServiceClient.Reservation("reservation-1","order",1L,"user-1",1,"CANCELLED"));
   workflow(0).create(request("same"));workflow(0).create(request("same"));
   verify(repository,atLeast(2)).save(argThat(o->o.getRequestId().equals("same")));
+ }
+ @Test void redisRejectionPreventsPendingOrder(){
+  doThrow(new RedisInventoryRejectedException(1L,"insufficient quantity")).when(redisInventory).reserve(1L,1);
+  assertThrows(RedisInventoryRejectedException.class,()->workflow(0).create(request("req-1")));
+  verify(repository,never()).save(any());
  }
 }
