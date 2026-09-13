@@ -26,7 +26,7 @@ public class OrderApi {
 	}
 
 	@PostMapping("/api/orders")
-	@ResponseStatus(HttpStatus.CREATED)
+	@ResponseStatus(HttpStatus.ACCEPTED)
 	Response create(@Valid @RequestBody CreateRequest request) {
 		MDC.put("requestId", request.requestId());
 		MDC.put("userId", request.userId());

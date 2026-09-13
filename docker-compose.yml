@@ -29,6 +29,28 @@ services:
       timeout: 3s
       retries: 20
 
+  kafka:
+    image: apache/kafka:3.9.1
+    ports:
+      - "29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
   product-service:
     build:
       context: .
@@ -42,9 +64,12 @@ services:
       INVENTORY_ERROR_PERCENTAGE: ${INVENTORY_ERROR_PERCENTAGE:-0}
       TOMCAT_MAX_THREADS: ${PRODUCT_TOMCAT_THREADS:-30}
       HIKARI_MAX_POOL_SIZE: ${PRODUCT_HIKARI_POOL:-10}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports: ["8081:8081"]
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health | grep -q UP"]
@@ -64,9 +89,12 @@ services:
       RESERVATION_ERROR_PERCENTAGE: ${RESERVATION_ERROR_PERCENTAGE:-0}
       TOMCAT_MAX_THREADS: ${RESERVATION_TOMCAT_THREADS:-30}
       HIKARI_MAX_POOL_SIZE: ${RESERVATION_HIKARI_POOL:-10}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports: ["8082:8082"]
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8082/actuator/health | grep -q UP"]
@@ -86,9 +114,12 @@ services:
       PAYMENT_FAILURE_PERCENTAGE: ${PAYMENT_FAILURE_PERCENTAGE:-10}
       TOMCAT_MAX_THREADS: ${PAYMENT_TOMCAT_THREADS:-20}
       HIKARI_MAX_POOL_SIZE: ${PAYMENT_HIKARI_POOL:-5}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports: ["8084:8084"]
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8084/actuator/health | grep -q UP"]
@@ -104,11 +135,9 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/order_db
       DB_USERNAME: flashsale
       DB_PASSWORD: flashsale
-      PRODUCT_SERVICE_URL: http://product-service:8081
-      RESERVATION_SERVICE_URL: http://reservation-service:8082
-      PAYMENT_SERVICE_URL: http://payment-service:8084
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       HTTP_CONNECT_TIMEOUT_MS: ${HTTP_CONNECT_TIMEOUT_MS:-1000}
       HTTP_READ_TIMEOUT_MS: ${HTTP_READ_TIMEOUT_MS:-5000}
       AFTER_PAYMENT_SUCCESS_PERCENTAGE: ${AFTER_PAYMENT_SUCCESS_PERCENTAGE:-0}
@@ -116,13 +145,11 @@ services:
       HIKARI_MAX_POOL_SIZE: ${ORDER_HIKARI_POOL:-10}
     ports: ["8083:8083"]
     depends_on:
-      product-service:
-        condition: service_healthy
-      reservation-service:
-        condition: service_healthy
-      payment-service:
+      postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8083/actuator/health | grep -q UP"]

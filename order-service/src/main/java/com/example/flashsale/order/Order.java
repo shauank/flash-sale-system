@@ -8,7 +8,8 @@ import java.time.Instant;
 @Table(name = "orders")
 public class Order {
 	public enum Status {
-		PENDING, CONFIRMED, FAILED, CANCELLED
+		PENDING, INVENTORY_PENDING, RESERVATION_PENDING, RESERVED, PAYMENT_PENDING, CONFIRMATION_PENDING, CONFIRMED,
+		FAILED, CANCELLED
 	}
 
 	@Id
@@ -114,12 +115,30 @@ public class Order {
 		totalAmount = amount;
 	}
 
+	public void inventoryPending() {
+		status = Status.INVENTORY_PENDING;
+	}
+
+	public void reservationPending(BigDecimal amount) {
+		totalAmount = amount;
+		status = Status.RESERVATION_PENDING;
+	}
+
 	public void reserved(String id) {
 		reservationId = id;
+		status = Status.RESERVED;
+	}
+
+	public void paymentPending() {
+		status = Status.PAYMENT_PENDING;
 	}
 
 	public void paid(String id) {
 		paymentId = id;
+	}
+
+	public void confirmationPending() {
+		status = Status.CONFIRMATION_PENDING;
 	}
 
 	public void confirm() {

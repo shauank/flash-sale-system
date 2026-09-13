@@ -1,69 +1,127 @@
 package com.example.flashsale.order;
+
+import static com.example.flashsale.events.FlashSaleEvents.*;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import org.junit.jupiter.api.*;import java.math.BigDecimal;
-import static org.junit.jupiter.api.Assertions.*;import static org.mockito.ArgumentMatchers.*;import static org.mockito.Mockito.*;
+import java.math.BigDecimal;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.kafka.core.KafkaTemplate;
 
 class OrderWorkflowTest {
- private OrderRepository repository;private ProductServiceClient products;private ReservationServiceClient reservations;private PaymentServiceClient payments;private RedisInventoryGate redisInventory;
- @BeforeEach void setup(){
-  repository=mock(OrderRepository.class);products=mock(ProductServiceClient.class);reservations=mock(ReservationServiceClient.class);payments=mock(PaymentServiceClient.class);redisInventory=mock(RedisInventoryGate.class);
-  when(repository.save(any())).thenAnswer(i->i.getArgument(0));
- }
- private OrderWorkflow workflow(int crash){return new OrderWorkflow(repository,products,reservations,payments,redisInventory,new SimpleMeterRegistry(),crash);}
- private OrderApi.CreateRequest request(String id){return new OrderApi.CreateRequest(id,"user-1",1L,1);}
- private void product(){when(products.get(1L)).thenReturn(new ProductServiceClient.Product(1L,"Laptop",new BigDecimal("1000"),100));}
- private ReservationServiceClient.Reservation reservation(){return new ReservationServiceClient.Reservation("reservation-1","order",1L,"user-1",1,"RESERVED");}
- @Test void successfulOrchestration(){
-  product();when(reservations.create(anyString(),eq(1L),eq("user-1"),eq(1))).thenReturn(reservation());
-  when(payments.process(anyString(),eq("user-1"),eq(new BigDecimal("1000")))).thenReturn(new PaymentServiceClient.Payment("payment-1","order","user-1",new BigDecimal("1000"),"SUCCESS",null));
-  when(reservations.confirm("reservation-1")).thenReturn(new ReservationServiceClient.Reservation("reservation-1","order",1L,"user-1",1,"CONFIRMED"));
-  OrderApi.Response response=workflow(0).create(request("req-1"));
-  assertEquals(Order.Status.CONFIRMED,response.orderStatus());assertEquals("SUCCESS",response.paymentStatus());
- }
- @Test void productNotFoundMarksOrderFailed(){
-  when(products.get(1L)).thenThrow(new DownstreamNotFoundException("product",new RuntimeException()));
-  assertEquals("PRODUCT_NOT_FOUND",workflow(0).create(request("req-1")).failureReason());
- }
- @Test void outOfStockMarksOrderFailed(){
-  product();doThrow(new DownstreamConflictException("product",new RuntimeException())).when(products).reduce(anyLong(),anyString(),anyString(),anyInt());
-  assertEquals("OUT_OF_STOCK",workflow(0).create(request("req-1")).failureReason());
- }
- @Test void reservationFailureLeavesInventoryReduced(){
-  product();when(reservations.create(anyString(),anyLong(),anyString(),anyInt())).thenThrow(new DownstreamUnavailableException("reservation",new RuntimeException()));
-  assertThrows(DownstreamUnavailableException.class,()->workflow(0).create(request("req-1")));
-  verify(products,never()).restore(anyLong(),anyString(),anyString(),anyInt());
- }
- @Test void paymentFailureCancelsAndRestoresInventory(){
-  product();when(reservations.create(anyString(),anyLong(),anyString(),anyInt())).thenReturn(reservation());
-  when(payments.process(anyString(),anyString(),any())).thenReturn(new PaymentServiceClient.Payment("payment-1","order","user-1",new BigDecimal("1000"),"FAILED","PAYMENT_DECLINED"));
-  when(reservations.cancel("reservation-1")).thenReturn(new ReservationServiceClient.Reservation("reservation-1","order",1L,"user-1",1,"CANCELLED"));
-  OrderApi.Response response=workflow(0).create(request("req-1"));assertEquals(Order.Status.FAILED,response.orderStatus());
-  verify(products).restore(eq(1L),anyString(),eq("req-1"),eq(1));
- }
- @Test void paymentTimeoutLeavesPendingState(){
-  product();when(reservations.create(anyString(),anyLong(),anyString(),anyInt())).thenReturn(reservation());
-  when(payments.process(anyString(),anyString(),any())).thenThrow(new DownstreamTimeoutException("payment",new RuntimeException()));
-  assertThrows(DownstreamTimeoutException.class,()->workflow(0).create(request("req-1")));
- }
- @Test void productTimeoutIsReported(){
-  when(products.get(1L)).thenThrow(new DownstreamTimeoutException("product",new RuntimeException()));
-  assertThrows(DownstreamTimeoutException.class,()->workflow(0).create(request("req-1")));
- }
- @Test void failureAfterPaymentSuccessLeavesReservationUnconfirmed(){
-  product();when(reservations.create(anyString(),anyLong(),anyString(),anyInt())).thenReturn(reservation());
-  when(payments.process(anyString(),anyString(),any())).thenReturn(new PaymentServiceClient.Payment("payment-1","order","user-1",BigDecimal.TEN,"SUCCESS",null));
-  assertThrows(AfterPaymentSuccessException.class,()->workflow(100).create(request("req-1")));verify(reservations,never()).confirm(anyString());
- }
- @Test void duplicateRequestIdsCreateTwoOrders(){
-  product();when(reservations.create(anyString(),anyLong(),anyString(),anyInt())).thenReturn(reservation());
-  when(payments.process(anyString(),anyString(),any())).thenReturn(new PaymentServiceClient.Payment("payment-1","order","user-1",BigDecimal.TEN,"FAILED","DECLINED"));
-  when(reservations.cancel(anyString())).thenReturn(new ReservationServiceClient.Reservation("reservation-1","order",1L,"user-1",1,"CANCELLED"));
-  workflow(0).create(request("same"));workflow(0).create(request("same"));
-  verify(repository,atLeast(2)).save(argThat(o->o.getRequestId().equals("same")));
- }
- @Test void redisRejectionPreventsPendingOrder(){
-  doThrow(new RedisInventoryRejectedException(1L,"insufficient quantity")).when(redisInventory).reserve(1L,1);
-  assertThrows(RedisInventoryRejectedException.class,()->workflow(0).create(request("req-1")));
-  verify(repository,never()).save(any());
- }
+	private OrderRepository repository;
+	private RedisInventoryGate redisInventory;
+	private KafkaTemplate<String, Object> kafka;
+	private OrderWorkflow workflow;
+
+	@BeforeEach
+	@SuppressWarnings("unchecked")
+	void setup() {
+		repository = mock(OrderRepository.class);
+		redisInventory = mock(RedisInventoryGate.class);
+		kafka = mock(KafkaTemplate.class);
+		when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+		workflow = new OrderWorkflow(repository, redisInventory, kafka, new SimpleMeterRegistry());
+	}
+
+	@Test
+	void acceptsOrderAndRequestsInventoryReduction() {
+		OrderApi.CreateRequest request = new OrderApi.CreateRequest("request-1", "user-1", 1L, 2);
+
+		OrderApi.Response response = workflow.create(request);
+
+		assertEquals(Order.Status.INVENTORY_PENDING, response.orderStatus());
+		verify(redisInventory).reserve(1L, 2);
+		verify(kafka).send(eq(INVENTORY_REDUCTION_REQUESTED), eq(response.orderId()),
+				any(InventoryReductionRequested.class));
+	}
+
+	@Test
+	void inventorySuccessRequestsReservation() {
+		Order order = order();
+		when(repository.findByOrderId(order.getOrderId())).thenReturn(Optional.of(order));
+
+		workflow.inventoryCompleted(new InventoryReductionCompleted(order.getOrderId(), order.getRequestId(),
+				order.getUserId(), order.getProductId(), order.getQuantity(), true, new BigDecimal("10.00"), null));
+
+		assertEquals(Order.Status.RESERVATION_PENDING, order.getStatus());
+		assertEquals(new BigDecimal("20.00"), order.getTotalAmount());
+		verify(kafka).send(eq(RESERVATION_REQUESTED), eq(order.getOrderId()), any(ReservationRequested.class));
+	}
+
+	@Test
+	void reservationSuccessRequestsPayment() {
+		Order order = order();
+		order.reservationPending(new BigDecimal("20.00"));
+		when(repository.findByOrderId(order.getOrderId())).thenReturn(Optional.of(order));
+
+		workflow.reservationCompleted(new ReservationCompleted(order.getOrderId(), "reservation-1",
+				order.getProductId(), order.getUserId(), order.getQuantity(), "CREATE", true, "RESERVED", null));
+
+		assertEquals(Order.Status.PAYMENT_PENDING, order.getStatus());
+		assertEquals("reservation-1", order.getReservationId());
+		verify(kafka).send(eq(PAYMENT_REQUESTED), eq(order.getOrderId()), any(PaymentRequested.class));
+	}
+
+	@Test
+	void paymentSuccessRequestsReservationConfirmation() {
+		Order order = order();
+		order.reserved("reservation-1");
+		order.paymentPending();
+		when(repository.findByOrderId(order.getOrderId())).thenReturn(Optional.of(order));
+
+		workflow.paymentCompleted(new PaymentCompleted(order.getOrderId(), "payment-1", "SUCCESS", null));
+
+		assertEquals(Order.Status.CONFIRMATION_PENDING, order.getStatus());
+		assertEquals("payment-1", order.getPaymentId());
+		verify(kafka).send(eq(RESERVATION_CONFIRMATION_REQUESTED), eq(order.getOrderId()),
+				any(ReservationConfirmationRequested.class));
+	}
+
+	@Test
+	void reservationConfirmationCompletesOrder() {
+		Order order = order();
+		order.reserved("reservation-1");
+		order.confirmationPending();
+		when(repository.findByOrderId(order.getOrderId())).thenReturn(Optional.of(order));
+
+		workflow.reservationCompleted(new ReservationCompleted(order.getOrderId(), "reservation-1",
+				order.getProductId(), order.getUserId(), order.getQuantity(), "CONFIRM", true, "CONFIRMED", null));
+
+		assertEquals(Order.Status.CONFIRMED, order.getStatus());
+	}
+
+	@Test
+	void paymentFailureRequestsCompensation() {
+		Order order = order();
+		order.reserved("reservation-1");
+		order.paymentPending();
+		when(repository.findByOrderId(order.getOrderId())).thenReturn(Optional.of(order));
+
+		workflow.paymentCompleted(new PaymentCompleted(order.getOrderId(), "payment-1", "FAILED", "DECLINED"));
+
+		assertEquals(Order.Status.FAILED, order.getStatus());
+		verify(kafka).send(eq(RESERVATION_CANCELLATION_REQUESTED), eq(order.getOrderId()),
+				any(ReservationCancellationRequested.class));
+		verify(kafka).send(eq(INVENTORY_RESTORATION_REQUESTED), eq(order.getOrderId()),
+				any(InventoryRestorationRequested.class));
+	}
+
+	@Test
+	void redisRejectionPreventsOrderCreation() {
+		doThrow(new RedisInventoryRejectedException(1L, "insufficient quantity")).when(redisInventory).reserve(1L, 2);
+
+		assertThrows(RedisInventoryRejectedException.class,
+				() -> workflow.create(new OrderApi.CreateRequest("request-1", "user-1", 1L, 2)));
+		verify(repository, never()).save(any());
+		verifyNoInteractions(kafka);
+	}
+
+	private Order order() {
+		return new Order("order-1", "request-1", "user-1", 1L, 2);
+	}
 }

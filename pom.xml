@@ -15,6 +15,7 @@
     <packaging>pom</packaging>
     <name>flash-sale-system</name>
     <modules>
+        <module>event-contracts</module>
         <module>product-service</module>
         <module>reservation-service</module>
         <module>order-service</module>

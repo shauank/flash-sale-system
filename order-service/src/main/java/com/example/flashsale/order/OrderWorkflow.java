@@ -1,163 +1,168 @@
 package com.example.flashsale.order;
 
-import io.micrometer.core.instrument.*;
-import org.slf4j.*;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import static com.example.flashsale.events.FlashSaleEvents.*;
+
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.math.BigDecimal;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class OrderWorkflow {
 	private static final Logger log = LoggerFactory.getLogger(OrderWorkflow.class);
+
 	private final OrderRepository repository;
-	private final ProductServiceClient products;
-	private final ReservationServiceClient reservations;
-	private final PaymentServiceClient payments;
 	private final RedisInventoryGate redisInventory;
-	private final int failAfterPayment;
-	private final Counter requested, confirmed, failed, outOfStock;
+	private final KafkaTemplate<String, Object> kafka;
+	private final Counter requested;
+	private final Counter confirmed;
+	private final Counter failed;
+	private final Counter outOfStock;
 	private final Timer duration;
 
-	OrderWorkflow(OrderRepository repository, ProductServiceClient products, ReservationServiceClient reservations,
-			PaymentServiceClient payments, RedisInventoryGate redisInventory, MeterRegistry registry,
-			@Value("${flashsale.failure.after-payment-success-percentage:0}") int failAfterPayment) {
+	OrderWorkflow(OrderRepository repository, RedisInventoryGate redisInventory, KafkaTemplate<String, Object> kafka,
+			MeterRegistry registry) {
 		this.repository = repository;
-		this.products = products;
-		this.reservations = reservations;
-		this.payments = payments;
 		this.redisInventory = redisInventory;
-		this.failAfterPayment = failAfterPayment;
-		requested = registry.counter("flashsale.orders.requested");
-		confirmed = registry.counter("flashsale.orders.confirmed");
-		failed = registry.counter("flashsale.orders.failed");
-		outOfStock = registry.counter("flashsale.orders.out_of_stock");
-		duration = registry.timer("flashsale.order.processing.duration");
+		this.kafka = kafka;
+		this.requested = registry.counter("flashsale.orders.requested");
+		this.confirmed = registry.counter("flashsale.orders.confirmed");
+		this.failed = registry.counter("flashsale.orders.failed");
+		this.outOfStock = registry.counter("flashsale.orders.out_of_stock");
+		this.duration = registry.timer("flashsale.order.processing.duration");
 	}
 
+	@Transactional
 	public OrderApi.Response create(OrderApi.CreateRequest request) {
 		requested.increment();
-		return duration.record(() -> orchestrate(request));
-	}
+		return duration.record(() -> {
+			String orderId = "order-" + UUID.randomUUID();
+			redisInventory.reserve(request.productId(), request.quantity());
 
-	private OrderApi.Response orchestrate(OrderApi.CreateRequest request) {
-		Order order = createPending(request);
-		MDC.put("orderId", order.getOrderId());
-		log.info("Order orchestration started");
-		ProductServiceClient.Product product;
-		try {
-			log.info("Getting product");
-			product = products.get(request.productId());
-			BigDecimal total = product.price().multiply(BigDecimal.valueOf(request.quantity()));
-			price(order, total);
-			log.info("Reducing inventory");
-			products.reduce(request.productId(), order.getOrderId(), request.requestId(), request.quantity());
-		} catch (DownstreamConflictException e) {
-			outOfStock.increment();
-			fail(order, "OUT_OF_STOCK");
-			return response(order, null, null, "Product is out of stock");
-		} catch (DownstreamNotFoundException e) {
-			fail(order, "PRODUCT_NOT_FOUND");
-			return response(order, null, null, "Product was not found");
-		}
-
-		ReservationServiceClient.Reservation reservation;
-		try {
-			log.info("Creating reservation");
-			reservation = reservations.create(order.getOrderId(), request.productId(), request.userId(),
+			Order order = new Order(orderId, request.requestId(), request.userId(), request.productId(),
 					request.quantity());
-			attachReservation(order, reservation.reservationId());
-			MDC.put("reservationId", reservation.reservationId());
-		} catch (RuntimeException e) {
-			// Intentional weakness: inventory is not compensated when reservation creation
-			// fails.
-			fail(order, "RESERVATION_SERVICE_FAILURE");
-			throw e;
-		}
+			order.inventoryPending();
+			repository.save(order);
 
-		log.info("Processing payment");
-		PaymentServiceClient.Payment payment = payments.process(order.getOrderId(), request.userId(),
-				order.getTotalAmount());
-		attachPayment(order, payment.paymentId());
-		MDC.put("paymentId", payment.paymentId());
-		if ("SUCCESS".equals(payment.status())) {
-			if (ThreadLocalRandom.current().nextInt(100) < failAfterPayment) {
-				log.error("Simulated crash after successful payment");
-				throw new AfterPaymentSuccessException();
+			kafka.send(INVENTORY_REDUCTION_REQUESTED, orderId,
+					new InventoryReductionRequested(orderId, request.requestId(), request.userId(), request.productId(),
+							request.quantity()));
+			MDC.put("orderId", orderId);
+			log.info("Order accepted; inventory reduction requested");
+			return response(order, null, null, "Order accepted for asynchronous processing");
+		});
+	}
+
+	@KafkaListener(topics = INVENTORY_REDUCTION_COMPLETED)
+	@Transactional
+	public void inventoryCompleted(InventoryReductionCompleted event) {
+		withOrderContext(event.orderId(), () -> {
+			Order order = order(event.orderId());
+			if (!event.successful()) {
+				outOfStock.increment();
+				fail(order, event.failureReason() == null ? "INVENTORY_REJECTED" : event.failureReason());
+				return;
 			}
-			log.info("Confirming reservation");
-			ReservationServiceClient.Reservation finalReservation = reservations.confirm(reservation.reservationId());
-			confirm(order);
-			confirmed.increment();
-			log.info("Order orchestration completed with CONFIRMED");
-			return response(order, finalReservation.status(), payment.status(), "Order completed successfully");
-		}
 
-		log.info("Payment failed; starting compensation");
-		String reservationStatus = "RESERVED";
-		try {
-			reservationStatus = reservations.cancel(reservation.reservationId()).status();
-		} catch (RuntimeException e) {
-			log.error("Reservation cancellation compensation failed", e);
-		}
-		try {
-			products.restore(request.productId(), order.getOrderId(), request.requestId(), request.quantity());
-		} catch (RuntimeException e) {
-			log.error("Inventory restoration compensation failed", e);
-		}
-		fail(order, payment.failureReason() == null ? "PAYMENT_FAILED" : payment.failureReason());
-		return response(order, reservationStatus, payment.status(), "Payment failed");
+			BigDecimal total = event.unitPrice().multiply(BigDecimal.valueOf(event.quantity()));
+			order.reservationPending(total);
+			repository.save(order);
+			kafka.send(RESERVATION_REQUESTED, order.getOrderId(),
+					new ReservationRequested(order.getOrderId(), order.getRequestId(), order.getUserId(),
+							order.getProductId(), order.getQuantity()));
+			log.info("Inventory reduced; reservation requested");
+		});
 	}
 
+	@KafkaListener(topics = RESERVATION_COMPLETED)
 	@Transactional
-	public Order createPending(OrderApi.CreateRequest r) {
-		redisInventory.reserve(r.productId(), r.quantity());
-		return repository
-				.save(new Order("order-" + UUID.randomUUID(), r.requestId(), r.userId(), r.productId(), r.quantity()));
+	public void reservationCompleted(ReservationCompleted event) {
+		withOrderContext(event.orderId(), () -> {
+			Order order = order(event.orderId());
+			if (!event.successful()) {
+				fail(order, event.failureReason() == null ? "RESERVATION_FAILED" : event.failureReason());
+				return;
+			}
+
+			if ("CREATE".equals(event.operation())) {
+				order.reserved(event.reservationId());
+				order.paymentPending();
+				repository.save(order);
+				kafka.send(PAYMENT_REQUESTED, order.getOrderId(),
+						new PaymentRequested(order.getOrderId(), order.getUserId(), order.getTotalAmount()));
+				log.info("Reservation created; payment requested");
+			} else if ("CONFIRM".equals(event.operation())) {
+				order.confirm();
+				repository.save(order);
+				confirmed.increment();
+				log.info("Reservation confirmed; order confirmed");
+			}
+		});
 	}
 
+	@KafkaListener(topics = PAYMENT_COMPLETED)
 	@Transactional
-	public void price(Order o, BigDecimal amount) {
-		o.priced(amount);
-		repository.save(o);
-	}
+	public void paymentCompleted(PaymentCompleted event) {
+		withOrderContext(event.orderId(), () -> {
+			Order order = order(event.orderId());
+			if (event.paymentId() != null)
+				order.paid(event.paymentId());
 
-	@Transactional
-	public void attachReservation(Order o, String id) {
-		o.reserved(id);
-		repository.save(o);
-	}
+			if ("SUCCESS".equals(event.status())) {
+				order.confirmationPending();
+				repository.save(order);
+				kafka.send(RESERVATION_CONFIRMATION_REQUESTED, order.getOrderId(),
+						new ReservationConfirmationRequested(order.getOrderId(), order.getReservationId()));
+				log.info("Payment succeeded; reservation confirmation requested");
+				return;
+			}
 
-	@Transactional
-	public void attachPayment(Order o, String id) {
-		o.paid(id);
-		repository.save(o);
-	}
-
-	@Transactional
-	public void confirm(Order o) {
-		o.confirm();
-		repository.save(o);
-	}
-
-	@Transactional
-	public void fail(Order o, String reason) {
-		o.fail(reason);
-		repository.save(o);
-		failed.increment();
+			fail(order, event.failureReason() == null ? "PAYMENT_FAILED" : event.failureReason());
+			kafka.send(RESERVATION_CANCELLATION_REQUESTED, order.getOrderId(),
+					new ReservationCancellationRequested(order.getOrderId(), order.getReservationId(), "PAYMENT_FAILED"));
+			kafka.send(INVENTORY_RESTORATION_REQUESTED, order.getOrderId(),
+					new InventoryRestorationRequested(order.getOrderId(), order.getRequestId(), order.getProductId(),
+							order.getQuantity(), "PAYMENT_FAILED"));
+			log.info("Payment failed; asynchronous compensation requested");
+		});
 	}
 
 	@Transactional(readOnly = true)
 	public OrderApi.Response get(String id) {
-		Order o = repository.findByOrderId(id).orElseThrow(() -> new OrderNotFoundException(id));
-		return response(o, null, null, "Order retrieved");
+		return response(order(id), null, null, "Order retrieved");
 	}
 
-	private OrderApi.Response response(Order o, String reservationStatus, String paymentStatus, String message) {
-		return new OrderApi.Response(o.getRequestId(), o.getOrderId(), o.getReservationId(), o.getPaymentId(),
-				o.getStatus(), reservationStatus, paymentStatus, message, o.getFailureReason(), o.getTotalAmount(),
-				o.getCreatedAt());
+	private Order order(String id) {
+		return repository.findByOrderId(id).orElseThrow(() -> new OrderNotFoundException(id));
+	}
+
+	private void fail(Order order, String reason) {
+		order.fail(reason);
+		repository.save(order);
+		failed.increment();
+		log.info("Order failed reason={}", reason);
+	}
+
+	private OrderApi.Response response(Order order, String reservationStatus, String paymentStatus, String message) {
+		return new OrderApi.Response(order.getRequestId(), order.getOrderId(), order.getReservationId(),
+				order.getPaymentId(), order.getStatus(), reservationStatus, paymentStatus, message,
+				order.getFailureReason(), order.getTotalAmount(), order.getCreatedAt());
+	}
+
+	private void withOrderContext(String orderId, Runnable action) {
+		MDC.put("orderId", orderId);
+		try {
+			action.run();
+		} finally {
+			MDC.remove("orderId");
+		}
 	}
 }

@@ -1,14 +1,15 @@
 # Flash Sale System — deliberately imperfect baseline
 
-This project is a hands-on system-design laboratory, not a production design. It starts with independently deployable microservices and intentionally preserves race conditions, runtime coupling, blocking calls, duplicate processing, and partial failure. Load it, observe it, form a hypothesis, change one design choice, and measure again.
+This project is a hands-on system-design laboratory, not a production design. It uses independently deployable microservices and now includes an intentionally incomplete asynchronous Kafka workflow. Load it, observe it, form a hypothesis, change one design choice, and measure again.
 
 ## Repository
 
 ```text
 flash-sale-system/
 ├── pom.xml                         Maven parent (convenience only)
-├── docker-compose.yml              PostgreSQL + four services
+├── docker-compose.yml              PostgreSQL + Redis + Kafka + four services
 ├── .env.example                    tunable bottlenecks/failures
+├── event-contracts/                shared Kafka topic and event records
 ├── product-service/                port 8081, product_db
 ├── reservation-service/            port 8082, reservation_db
 ├── order-service/                  port 8083, order_db
@@ -28,34 +29,39 @@ Every service has its own `pom.xml`, Dockerfile, application, Flyway history, da
 ## Architecture and ownership
 
 ```text
-Client
-  |
-  v
-Order Service ──REST──> Product Service       product_db.product
-     |  └──────REST──> Reservation Service   reservation_db.reservation
-     └─────────REST──> Payment Service       payment_db.payment
-          owns order_db.orders
+Client ──HTTP──> Order Service ──Kafka──> Product Service
+                     ^    |                  product_db.product
+                     |    ├────Kafka──> Reservation Service
+                     |    |                  reservation_db.reservation
+                     |    └────Kafka──> Payment Service
+                     |                       payment_db.payment
+                     └──── completion events from each service
+                          owns order_db.orders
 ```
 
 | Service | Responsibility | Local transaction boundary |
 |---|---|---|
 | Product | Product lookup, unsafe stock reduce/restore | One product read/check/update |
 | Reservation | Create, confirm, cancel, retrieve | One reservation operation |
-| Order | Persist order steps and synchronously coordinate | Each order persistence step |
-| Payment | Persist PENDING, block, choose result, persist result | One local payment transaction |
+| Order | Redis stock gate, persist state, orchestrate Kafka commands/events | Each order state transition |
+| Payment | Consume payment request, persist PENDING, choose result, publish completion | One local payment transaction |
 
 Identifiers connect records across databases; there are no cross-service database reads or foreign keys. `request_id` deliberately has a non-unique index.
 
-## Synchronous workflow
+## Asynchronous Kafka workflow
 
-1. `POST /api/orders` stores a new `PENDING` order.
-2. Order gets the product price and calls Product to reduce stock.
-3. Order calls Reservation to create a `RESERVED` record.
-4. Order calls Payment. The payment request thread sleeps for the configured delay.
-5. Success: confirm the reservation, then mark the order `CONFIRMED`.
-6. Failure: try to cancel the reservation, try to restore stock, then mark the order `FAILED`.
+1. `POST /api/orders` atomically reduces the Redis `product` hash through Lua, stores an `INVENTORY_PENDING` order, publishes `InventoryReductionRequested`, and immediately returns `202 Accepted`.
+2. Product consumes the request, updates its database, and publishes `InventoryReductionCompleted`.
+3. Order advances to `RESERVATION_PENDING` and publishes `ReservationRequested`.
+4. Reservation creates the record and publishes `ReservationCompleted`.
+5. Order advances to `PAYMENT_PENDING` and publishes `PaymentRequested`.
+6. Payment processes the request and publishes `PaymentCompleted`.
+7. On payment success, Order advances to `CONFIRMATION_PENDING` and asks Reservation to confirm.
+8. Reservation publishes its completion and Order becomes `CONFIRMED`.
 
-This compensation is ordinary application code, not a Saga. Compensation calls can fail. A Payment timeout leaves the order `PENDING` and reservation `RESERVED`; Reservation unavailability after stock reduction deliberately does not restore stock. With forced after-payment failure, Payment is `SUCCESS` while Order remains `PENDING` and Reservation remains `RESERVED`.
+The client polls `GET /api/orders/{orderId}` while the workflow progresses. A successful POST means the workflow was accepted, not that reservation or payment has completed.
+
+This learning phase deliberately has no transactional outbox, Kafka publication recovery, retry topics, DLQ, consumer idempotency, timeout/expiry worker, or reconciliation. A process failure between a database commit and Kafka publication can strand a workflow. Basic business-failure transitions exist so an explicit payment rejection can mark an order failed, but reliable failure delivery and recovery are deferred.
 
 ## Build and run
 
@@ -66,6 +72,15 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 21)   # macOS, if Maven selects an 
 mvn test
 docker compose up --build
 ```
+
+To start only the infrastructure:
+
+```bash
+docker compose up -d postgres redis kafka
+docker compose exec redis redis-cli HSET product 1 100
+```
+
+The Redis command initializes stock for product `1`; order creation is rejected until that hash field exists with sufficient quantity. When running services from STS, use `localhost:5432`, `localhost:6379`, and `KAFKA_BOOTSTRAP_SERVERS=localhost:29092`. Containers use Kafka at `kafka:9092`.
 
 Wait until all health checks pass:
 
@@ -90,6 +105,12 @@ curl -i -X POST http://localhost:8083/api/orders \
   -H 'Content-Type: application/json' \
   -H 'X-Correlation-ID: demo-1' \
   -d '{"requestId":"req-10001","userId":"user-101","productId":1,"quantity":1}'
+```
+
+The response is `202 Accepted` and contains the order ID. Poll it until the status is terminal:
+
+```bash
+curl http://localhost:8083/api/orders/ORDER_ID
 ```
 
 Inspect state:
@@ -122,6 +143,8 @@ Copy `.env.example` to `.env` or set variables before `docker compose up`. Key c
 |---|---:|---|
 | `PAYMENT_DELAY_MS` | 500 | Blocking latency/thread saturation |
 | `PAYMENT_FAILURE_PERCENTAGE` | 10 | Compensation behavior |
+| `KAFKA_BOOTSTRAP_SERVERS` | localhost:29092 | Broker used when services run outside Compose |
+| `REDIS_HOST` / `REDIS_PORT` | localhost / 6379 | Redis stock gate used by Order |
 | `INVENTORY_DELAY_MS` / `INVENTORY_ERROR_PERCENTAGE` | 0 / 0 | Product bottleneck/failure |
 | `RESERVATION_DELAY_MS` / `RESERVATION_ERROR_PERCENTAGE` | 0 / 0 | Partial workflow failure |
 | `AFTER_PAYMENT_SUCCESS_PERCENTAGE` | 0 | Paid but incomplete order |
@@ -129,7 +152,7 @@ Copy `.env.example` to `.env` or set variables before `docker compose up`. Key c
 | `*_TOMCAT_THREADS` | varies | Thread-pool saturation |
 | `*_HIKARI_POOL` | varies | Connection-pool saturation |
 
-There is no retry, circuit breaker, bulkhead, load balancer, discovery, or fallback.
+There is no retry, DLQ, outbox, consumer idempotency, circuit breaker, bulkhead, load balancer, discovery, or fallback.
 
 ## Reset, inspect, and verify
 
@@ -167,7 +190,7 @@ curl -s http://localhost:8083/actuator/prometheus | grep flashsale
 curl -s http://localhost:8084/actuator/prometheus | grep -E 'flashsale|tomcat_threads|hikaricp'
 ```
 
-`X-Correlation-ID` is propagated to all service calls and placed in MDC. Order logs mark each orchestration step and include correlation/request/order context.
+Kafka events carry the workflow identifiers needed by their consumers. Order logs mark state transitions and include request/order context.
 
 ## JMeter and learning scenarios
 
@@ -191,20 +214,20 @@ Run these experiments:
 6. Payment failure: 50 users, 30% failure; compare all four databases.
 7. Duplicates: use `-JduplicateRequests=true`.
 8. Stop Reservation during load; observe reduced stock and incomplete/missing reservation.
-9. Stop Payment after reservations start; observe `PENDING`/`RESERVED`.
+9. Stop Payment after reservations start; observe `PAYMENT_PENDING` orders and accumulating Kafka consumer lag.
 10. Set `AFTER_PAYMENT_SUCCESS_PERCENTAGE=100`; observe `SUCCESS` payment with incomplete order.
 
-For a manual full-flow integration test, set payment failures to zero, start Compose, reset data, submit the curl request above, then run both state scripts. The order, reservation, and payment should be confirmed and stock should be 99.
+For a manual full-flow integration test, set payment failures to zero, start Compose, initialize Redis stock, submit the curl request above, poll the returned order ID, then run both state scripts. The order, reservation, and payment should eventually be confirmed and database stock should be 99.
 
 ## Expected baseline weaknesses
 
-The baseline intentionally permits inventory races and lost updates; overselling or a misleading remaining count; duplicate orders, reservations, payments, and decrements; partial failures and failed compensation; no distributed transaction; reduced inventory without reservation; reserved inventory without payment completion; successful payment without order confirmation; synchronous latency amplification; thread-per-request blocking; Tomcat, HTTP, and Hikari saturation; cascading failure and tight runtime coupling; timeout ambiguity; no retry, circuit breaker, bulkhead, rate limit, back-pressure, reservation expiry worker, event recovery, outbox, DLQ, reconciliation, tracing, gateway, or discovery; manual configuration; and uneven scaling needs.
+The current phase intentionally permits duplicate event processing; partial workflows; no distributed transaction; a committed database change without a corresponding event; reduced inventory without reservation; reserved inventory without payment completion; successful payment without order confirmation; consumer lag; poison-message stalls; timeout ambiguity; and no retry, backoff, idempotency, rate limit, back-pressure, reservation expiry worker, event recovery, outbox, DLQ, reconciliation, tracing, gateway, or discovery.
 
 Some race outcomes vary because the point is to observe nondeterministic interleavings. A client timeout also does not prove the backend stopped processing.
 
 ## Scaling experiments
 
-Change pool variables independently and compare throughput/latency. Stop one container while others remain healthy. Compose can create multiple instances with `docker compose up --scale payment-service=2`, but the fixed host port and Order's single service-name URL make this intentionally incomplete: remove fixed host-port mappings and add a reverse proxy/load balancer in a later phase. The baseline does not pretend that merely starting replicas provides a complete scaling solution.
+Change pool variables independently and compare throughput/latency. Stop a consumer while Order remains available, then restart it and observe the backlog drain. Kafka consumer groups allow service replicas to share partitions, but the current auto-created topics default to one partition and fixed host ports prevent Compose replicas without overrides. Partition-count, ordering, and rebalancing experiments are a later phase.
 
 ## Improvement roadmap
 
@@ -212,7 +235,7 @@ Change pool variables independently and compare throughput/latency. Stop one con
 2. **Correctness:** conditional atomic stock update; optimistic/pessimistic locking comparisons; idempotency and unique constraints; stronger transitions; expiry and reconciliation.
 3. **Resilience:** measured timeouts; retry/backoff; circuit breaker; bulkhead; rate limiting; fallback decisions.
 4. **Redis:** atomic Lua decrement, reservation TTL, idempotency, expiry restoration, Redis failure handling.
-5. **Kafka:** async payment/workflow events, partitions, consumer groups, retry topics, DLQ, consumer idempotency.
+5. **Kafka (current):** asynchronous inventory, reservation, payment, and confirmation events with consumer groups.
 6. **Consistency:** transactional outbox; Saga orchestration/choreography comparison; durable compensation/recovery.
 7. **Observability:** centralized logs, Prometheus/Grafana, OpenTelemetry tracing, business consistency dashboards.
 8. **Kubernetes:** deployments, independent scaling/HPA, probes, configuration/secrets, resources, disruption and rollout behavior.
